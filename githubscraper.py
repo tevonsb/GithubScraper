@@ -11,8 +11,8 @@ def main():
 	return
 
 def run_script():
-	gh = GitHub('tevonsb', 'T')
 	'''
+	gh = GitHub('tevonsb', 'T')
 	location = raw_input('Enter a location: ')
 	num_repos = '>5'
 	num_repos = raw_input('Number of repos, range say >20')
@@ -21,7 +21,7 @@ def run_script():
 	'''
 	##search_string = 'https://api.github.com/search/users?q='+'location:"'+location+'"'+'+repos:'+num_repos
 	search_string = 'https://api.github.com/tevonsb/emails'
-	r = requests.get(search_string, auth = ('tevonsb', '********'))
+	r = requests.get('https://api.github.com/?access_token= 39c1ad610c6c01fb0f2c30a68d2c24e54aa6ed3e')  
 	stdio.writeln(r.status_code)
 	stdio.writeln(r.headers)
 
