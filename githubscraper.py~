@@ -1,7 +1,7 @@
 import stdio
 import urllib3
 import requests
-import github
+import pyGithub
 
 
 def main():
