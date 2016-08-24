@@ -7,8 +7,8 @@ import Queue
 NUM_FOLLOWERS = 20
 NUM_REPOS = 10
 LOCATION = 'San Francisco, CA'
-LIMIT = 30
-q_size_limit = 30
+LIMIT = 3
+q_size_limit = 3
 qual_users = set()
 
 
@@ -59,19 +59,21 @@ def collect_keyword(gh, search_term):
 def collect_user(gh):
 	user_name = 'mojombo'
 	base_user = gh.get_user(user_name)
-	user_queue = Queue.Queue()
+	user_queue = Queue.Queue(q_size_limit)
 	user_queue.put(base_user)
 	count = 0;
 	while(not user_queue.empty() and count < LIMIT):
 		curr_user = user_queue.get()
-		if(user_queue.qsize()<q_size_limit):
-			for user in curr_user.get_following():
-				if protect_user(user): continue
-				if check_user(user):
-					print("adding "+ user.name)
+		count += 1
+		if not user_queue.full():
+			count_2 = 0;
+			for user in curr_user.get_followers():
+				if count_2 > 20: break
+				if protect_user(user) and check_user(user):
 					user_queue.put(user)
-	##for user in user_queue:
-	
+					qual_users.add(user)
+					print("adding "+ curr_user.name)
+					count_2 += 1
 
 	return
 
@@ -79,9 +81,10 @@ def collect_searched(gh):
 	return
 
 def protect_user(user):
-	if user==None or user.location == None or user.location not in LOCATION or user.name == None or user.followers == None or user.public_repos == None: return True
-	if user in qual_users: return True
-	return False
+	if user==None or user.location == None or user.location not in LOCATION or user.name == None or user.followers == None or user.public_repos == None: return False
+	if user in qual_users: return False
+	print("Trying " + user.name)
+	return True
 
 
 def check_user(user):
