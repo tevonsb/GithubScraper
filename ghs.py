@@ -3,6 +3,7 @@ import urllib3
 import requests
 import github
 import Queue
+import csv
 
 NUM_FOLLOWERS = 20
 NUM_REPOS = 10
@@ -10,11 +11,12 @@ LOCATION = 'San Francisco, CA'
 LIMIT = 3
 q_size_limit = 3
 qual_users = set()
-
+qual_emails = set()
 
 from github import Github
 def main():
 	run_script()
+	print_list()
 	write_file()
 	return
 
@@ -39,21 +41,14 @@ def collect_keyword(gh, search_term):
 
 	count = 0
 	for user in users:
-		if protect_user(user): continue
+		if protect_user(user):
 		## Checking Needed profile criteria
-
-		print("Trying with:"+ user.name)
-		if check_user(user):
-			qual_users.add(user)
-		count+=1
-		if(count > 30): break
-
-
-	result = ""
-	for user in qual_users:
-		result += user.name + ' ' + str(user.followers) + user.location + '\n'
-
-	print(result)
+			print("Trying with:"+ user.name)
+			if check_user(user):
+				print("Adding to qual:"+ user.name)
+				qual_users.add(user)
+			count+=1
+		if(count > 10): break
 	return
 
 def collect_user(gh):
@@ -72,6 +67,7 @@ def collect_user(gh):
 				if protect_user(user) and check_user(user):
 					user_queue.put(user)
 					qual_users.add(user)
+					qual_emails.add(user.email)
 					print("adding "+ curr_user.name)
 					count_2 += 1
 
@@ -82,8 +78,7 @@ def collect_searched(gh):
 
 def protect_user(user):
 	if user==None or user.location == None or user.location not in LOCATION or user.name == None or user.followers == None or user.public_repos == None: return False
-	if user in qual_users: return False
-	print("Trying " + user.name)
+	if user.email in qual_emails: return False
 	return True
 
 
@@ -91,10 +86,20 @@ def check_user(user):
 	if(user.followers >= NUM_FOLLOWERS and user.public_repos >= NUM_REPOS and (user.location in LOCATION)): return True
 	return False
 
+def print_list():
+	result = ""
+	for user in qual_users:
+		result += user.name + ' ' + str(user.followers) + user.location + '\n'
 
+	print(result)
+	return
 
 
 def write_file():
+	with open('results.csv', 'r+', newLine = '') as cand_file:
+		writer = csv.writer(cand_file)
+		writer.writerows(qual_users)
+
 	return
 
 main()
