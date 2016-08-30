@@ -1,8 +1,4 @@
-##import stdio
-import urllib3
-import requests
 import github
-import Queue
 import csv
 import sys
 
@@ -32,19 +28,24 @@ def setup():
 			curr_email = prev_file.readline()
 	return
 
-
+def get_input(whats_wanted_ptr, input_word_ptr):
+	with open("input_file.txt", 'r') as input_file:
+		read_first_line = input_file.readline()
+		*whats_wanted_ptr = read_first_line.substr(read_first_line.get_index_of(':')) ##Sudo code, figure out how to actually code this.
+		
 
 
 def run_script():
 
 
-	sys.stdout.write("Hello, World!")
 	gh = Github('39c1ad610c6c01fb0f2c30a68d2c24e54aa6ed3e')
 
 	whats_wanted = raw_input("type user (To set a base user), Search (To enter an advanced search string) or keyword (for a keyword based search): ")
-	if whats_wanted == 'user': collect_user(gh)
+	input_word = ''
+	get_input(&whats_wanted, &input_word)
+	if whats_wanted == 'user': collect_user(gh, input_word)
 	elif whats_wanted == 'search': collect_searched(gh)
-	elif whats_wanted == 'keyword': collect_keyword(gh, 'hello')
+	elif whats_wanted == 'keyword': collect_keyword(gh, input_word)
 
 	return
 
