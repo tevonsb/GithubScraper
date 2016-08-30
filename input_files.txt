@@ -1,5 +1,0 @@
-Input_files
-
-Search Type (Keyword, User):
-Keyword or User name:
-Number of results: 
