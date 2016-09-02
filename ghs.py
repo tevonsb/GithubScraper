@@ -149,7 +149,6 @@ def collect_user(gh, inputs, user_name):
 			
 			##Tries to iterate through followers, adding to qualified list and queue or discarding
 			try:
-				print('Got into try...')
 				for user in curr_user.get_followers():
 					sys.stdout.write('. ')
 					sys.stdout.flush()
