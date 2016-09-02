@@ -1,30 +1,41 @@
 import github
 import csv
 import sys
+import signal
 from time import gmtime, strftime
 
+
+##Global variable (semi constant) declarations
 NUM_FOLLOWERS = 20
 NUM_REPOS = 10
 LOCATION = 'San Francisco, CA'
 LIMIT_FOLLOWERS = 10
-q_size_limit = 3
+q_size_limit = 40
 qual_users = set()
 qual_emails = set()
 used_emails = set()
 LIMIT = 10
 
-
+##pyGithub Library
 from github import Github
+
+
+def signal_handler(signal, frame):
+        print('You pressed Ctrl+C!')
+        sys.exit(1)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 ##calls needed functions in the correct order, passes around an array of inputs dictated by a file or user input.
 def main():
-	inputs = ['', '', LIMIT, NUM_FOLLOWERS, NUM_REPOS]
+	inputs = ['', '', '', LIMIT, NUM_FOLLOWERS, NUM_REPOS]
 	setup(inputs)
 	run_script(inputs)
 	print_list()
 	write_file(inputs)
 	return
 
+##Sets up and reads the file of previously found profiles. Takes inputs as a parameter and fills it with user input with a call to get_inputs
 def setup(inputs):
 	try:
 		with open('prev_found.txt', 'r') as prev_file:
@@ -38,12 +49,15 @@ def setup(inputs):
 	get_input(inputs)
 	return
 
+
+##Takes user inputs and assigns global variables, commented section with ability to read inputs from file. 
 def get_input(inputs):
 	inputs[0] = raw_input("Do you want a keyword or user search? : ").strip()
 	inputs[1] = raw_input("What is the username or keyword you want to search? : ").strip()
-	inputs[2] = int(raw_input("How many results do you want? : ").strip())
-	inputs[3] = int(raw_input("At least how many repos should they have? : ").strip())
-	inputs[4] = int(raw_input("At least how many followers should they have? : ").strip())
+	inputs[2] = raw_input("Where should they be located? Enter as many locations as you like. : ")
+	inputs[3] = int(raw_input("How many results do you want? : ").strip())
+	inputs[4] = int(raw_input("At least how many repos should they have? : ").strip())
+	inputs[5] = int(raw_input("At least how many followers should they have? : ").strip())
 
 	global LIMIT_FOLLOWERS
 	global LOCATION
@@ -70,7 +84,7 @@ def get_input(inputs):
 		print("Got here")
 		'''
 
-
+##Establishes an auth0 connection to Github (Good for 5000 reqs/hr) calls search function.
 def run_script(inputs):
 
 	try:
@@ -87,7 +101,8 @@ def run_script(inputs):
 
 	return
 
-
+##Keyword based search (Github may depricate this functionality soon)
+'''
 def collect_keyword(gh, inputs, search_term):
 
 
@@ -112,7 +127,9 @@ def collect_keyword(gh, inputs, search_term):
 		write_file(inputs)
 		return
 	return
+'''
 
+##User based search, takes a seed user and checks who he follows for more qualified users
 def collect_user(gh, inputs, user_name):
 	try:
 		base_user = gh.get_user(user_name)
@@ -121,15 +138,18 @@ def collect_user(gh, inputs, user_name):
 		## Add code to handle entering another name and reinputing into Algo
 	user_queue = []
 	user_queue.append(base_user)
+	qual_emails.add(base_user.email)
 	count = 0;
 	while user_queue:
 		curr_user = user_queue.pop(0)
 		count += 1
 		if not len(user_queue)>LIMIT:
 			count_2 = 0;
-			sys.stdout.write('\nEvaluating user who '+ curr_user.name+ ' follows')
+			sys.stdout.write('\nEvaluating user who '+ curr_user.name+ ' follows\n')
 			
+			##Tries to iterate through followers, adding to qualified list and queue or discarding
 			try:
+				print('Got into try...')
 				for user in curr_user.get_followers():
 					sys.stdout.write('. ')
 					sys.stdout.flush()
@@ -139,27 +159,30 @@ def collect_user(gh, inputs, user_name):
 						qual_users.add(user)
 						if len(qual_users) >= LIMIT: return
 						qual_emails.add(user.email)
-						print("\nadding "+ user.name)
+						print("+ ")
 						count_2 += 1
-			except: 
-				print('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
-				print('In the mean time I have saved good profiles I have already found to the usual CSV')
-				write_file(inputs)
+			except:
+				if qual_users: 
+					print('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
+					print('In the mean time I have saved good profiles I have already found to the usual CSV')
+					write_file(inputs)
 	return
 
+##Protects from possible None fields. If any of these required fields are None, returns false and algo passes over.
 def protect_user(user):
 	if user==None or user.location == None or user.email == None or user.name == None or user.followers == None or user.public_repos == None: return False
 	if user.email in qual_emails: return False 
 	if user.email in used_emails: 
-		print("found repeat email")
+		sys.stdout.write("- ")
 		return False
 	return True
 
-
+##Checks the criteria set to be considered a qualified profile (Checks number of followers, location and number of Repos)
 def check_user(user):
-	if(user.followers >= NUM_FOLLOWERS and user.public_repos >= NUM_REPOS and (user.location in LOCATION)): return True
+	if(user.followers >= NUM_FOLLOWERS and user.public_repos >= NUM_REPOS and ((user.location in LOCATION) or (LOCATION in user.location))): return True
 	return False
 
+##Testing Helper function
 def print_list():
 	result = ""
 	for user in qual_users:
@@ -168,20 +191,23 @@ def print_list():
 	print(result)
 	return
 
-
+##Writes the CSV file and appends the previously found file with the new returned profiles. 
 def write_file(inputs):
-	print('Writing to CSV format.')
-	file_name = inputs[0]+'_'+inputs[1]+strftime('%m-%d %H_%M_%S')+'.csv'
-	with open(file_name, 'w+') as cand_file:
-		writer = csv.writer(cand_file)
-		header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL']
-		writer.writerow(header_row)
-		for user in qual_users:
-			user_list = [user.name.encode('utf-8'), user.email, user.location, user.public_repos, user.followers, 'github.com/'+user.login]
-			writer.writerow(user_list)
-	with open('prev_found.txt', 'a') as email_file:
-		for email in qual_emails:
-			email_file.write(email+'\n')
+	if qual_users:
+		print('Writing to CSV format.')
+		file_name = inputs[0]+'_'+inputs[1]+strftime('%m-%d %H_%M_%S')+'.csv'
+		with open(file_name, 'w+') as cand_file:
+			writer = csv.writer(cand_file)
+			header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL']
+			writer.writerow(header_row)
+			for user in qual_users:
+				user_list = [user.name.encode('utf-8'), user.email, user.location, user.public_repos, user.followers, 'github.com/'+user.login]
+				writer.writerow(user_list)
+		with open('prev_found.txt', 'a') as email_file:
+			for email in qual_emails:
+				email_file.write(email+'\n')
+	else:
+		print("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 	return
 
 main()
