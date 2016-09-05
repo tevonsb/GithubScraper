@@ -52,8 +52,8 @@ def setup(inputs):
 
 ##Takes user inputs and assigns global variables, commented section with ability to read inputs from file. 
 def get_input(inputs):
-	inputs[0] = raw_input("Do you want a keyword or user search? : ").strip()
-	inputs[1] = raw_input("What is the username or keyword you want to search? : ").strip()
+	##inputs[0] = raw_input("Do you want a keyword or user search? : ").strip()
+	inputs[1] = raw_input("What is the username you want to search? : ").strip()
 	inputs[2] = raw_input("Where should they be located? Enter as many locations as you like. : ")
 	inputs[3] = int(raw_input("How many results do you want? : ").strip())
 	inputs[4] = int(raw_input("At least how many repos should they have? : ").strip())
@@ -65,9 +65,10 @@ def get_input(inputs):
 	global NUM_FOLLOWERS
 	global LIMIT
 
-	LIMIT = inputs[2]
-	NUM_REPOS = inputs[3]
-	NUM_FOLLOWERS = inputs[4]
+	LOCATION = inputs[2]
+	LIMIT = inputs[3]
+	NUM_REPOS = inputs[4]
+	NUM_FOLLOWERS = inputs[5]
 
 	'''
 	with open("input_file.txt", 'r') as input_file:
@@ -93,12 +94,14 @@ def run_script(inputs):
 		print("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
 
 	##whats_wanted = raw_input("type user (To set a base user), Search (To enter an advanced search string) or keyword (for a keyword based search): ")
-	inputs[0] = inputs[0].lower().strip()
+	##inputs[0] = inputs[0].lower().strip()
 	inputs[1] = inputs[1].lower().strip()
+	collect_user(gh, inputs, inputs[1])
+	'''
 	if inputs[0] in 'user' or 'user' in inputs[0]: collect_user(gh, inputs, inputs[1])
 	elif inputs[0] == 'search': collect_searched(gh)
 	elif inputs[0] == 'keyword': collect_keyword(gh, inputs, inputs[1])
-
+	'''
 	return
 
 ##Keyword based search (Github may depricate this functionality soon)
@@ -152,19 +155,20 @@ def collect_user(gh, inputs, user_name):
 				for user in curr_user.get_followers():
 					sys.stdout.write('. ')
 					sys.stdout.flush()
-					if count_2 > LIMIT_FOLLOWERS: break
 					if protect_user(user) and check_user(user):
 						user_queue.append(user)
 						qual_users.add(user)
-						if len(qual_users) >= LIMIT: return
 						qual_emails.add(user.email)
-						print("+ ")
-						count_2 += 1
+						if len(qual_users) >= LIMIT: return
+						sys.stdout.write("+ ")
 			except:
 				if qual_users: 
 					print('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
 					print('In the mean time I have saved good profiles I have already found to the usual CSV')
 					write_file(inputs)
+				return
+	print("Ran out of qualified leads, here's the CSV of the ones I found.")
+	write_file(inputs)
 	return
 
 ##Protects from possible None fields. If any of these required fields are None, returns false and algo passes over.
@@ -178,7 +182,7 @@ def protect_user(user):
 
 ##Checks the criteria set to be considered a qualified profile (Checks number of followers, location and number of Repos)
 def check_user(user):
-	if(user.followers >= NUM_FOLLOWERS and user.public_repos >= NUM_REPOS and ((user.location in LOCATION) or (LOCATION in user.location))): return True
+	if(user.followers >= NUM_FOLLOWERS and user.public_repos >= NUM_REPOS and ((user.location.lower() in LOCATION.lower()) or (LOCATION.lower() in user.location.lower()))): return True
 	return False
 
 ##Testing Helper function
