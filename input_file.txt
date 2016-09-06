@@ -1,3 +1,0 @@
-Search Type (Keyword, User):User
-Keyword or User name:mojombo
-Number of results: 5

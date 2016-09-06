@@ -3,7 +3,9 @@ import csv
 import sys
 import signal
 from time import gmtime, strftime
+from easygui import *
 
+title = "Github Scraper"
 
 ##Global variable (semi constant) declarations
 NUM_FOLLOWERS = 20
@@ -53,11 +55,11 @@ def setup(inputs):
 ##Takes user inputs and assigns global variables, commented section with ability to read inputs from file. 
 def get_input(inputs):
 	##inputs[0] = raw_input("Do you want a keyword or user search? : ").strip()
-	inputs[1] = raw_input("What is the username you want to search? : ").strip()
-	inputs[2] = raw_input("Where should they be located? Enter as many locations as you like. : ")
-	inputs[3] = int(raw_input("How many results do you want? : ").strip())
-	inputs[4] = int(raw_input("At least how many repos should they have? : ").strip())
-	inputs[5] = int(raw_input("At least how many followers should they have? : ").strip())
+	inputs[1] = enterbox("What is the username you want to search? : ")##raw_input("What is the username you want to search? : ").strip()
+	inputs[2] = enterbox("Where should they be located? Enter as many locations as you like. : ")
+	inputs[3] = int(enterbox("How many results do you want? : ").strip())
+	inputs[4] = int(enterbox("At least how many repos should they have? : ").strip())
+	inputs[5] = int(enterbox("At least how many followers should they have? : ").strip())
 
 	global LIMIT_FOLLOWERS
 	global LOCATION
