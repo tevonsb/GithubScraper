@@ -208,7 +208,8 @@ def write_file(inputs):
 				writer.writerow(user_list)
 		with open('prev_found.txt', 'a') as email_file:
 			for email in qual_emails:
-				email_file.write(email+'\n')
+				if email:
+					email_file.write(email+'\n')
 	else:
 		print("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 	return
