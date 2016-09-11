@@ -1,21 +1,25 @@
+##Trying to create a GUI with asynchonous I/O stream.
 import github
 import csv
 import sys
 import signal
 from time import gmtime, strftime
+import os.path
+import Queue
+import threading	
 
 import Tkinter as Tk
 from github import Github
 
+##signal.signal(signal.SIGINT, signal_handler)
 def signal_handler(signal, frame):
         sys.exit(1)
 
-##signal.signal(signal.SIGINT, signal_handler)
 
-
-class Scraper(object):
+class GUI:
 
 	def __init__(self):
+
 		self.root = Tk.Tk()
 		self.root.wm_title("Github Scraper")
 
@@ -52,44 +56,55 @@ class Scraper(object):
 		self.buttontext = Tk.StringVar()
 		self.buttontext.set("Scrape!")
 
-		Tk.Button(self.root,
-                  textvariable=self.buttontext,
-                  command=self.clicked1).pack()
+		Tk.Button(self.root, 
+			textvariable=self.buttontext, command=self.scraper_clicked).pack()
 
 		self.label = Tk.Label(self.root, text="Filler Texted")
 		self.label.pack()
-
-		self.qual_users = set()
-		self.qual_emails = set()
-		self.used_emails = set()
-
-		self.username = ''
-		self.location = ''
-		self.num_results = 0
-		self.num_repos = 0
-		self.num_followers = 0
-
+		self.running = False
+		##Starts mainloop execution
 		self.root.mainloop()
 
+	def handle_queue(self):
+		try:
+			msg = self.message_queue.get(0)
+			self.label.configure(text = msg)
+		except Queue.Empty:
+			pass
+		self.root.after(250, self.handle_queue)
 
 
-
-	def validate_inputs(self):
-		self.username = self.T_github_username.get().strip().lower()
-		self.location = self.T_location.get().strip().lower()
-		self.num_results = int(self.T_num_results.get().strip())
-		self.num_repos = int(self.T_num_repos.get().strip())
-		self.num_followers = int(self.T_num_followers.get().strip())
-
-	def clicked1(self):
-		self.validate_inputs()
-		self.label.configure(text=self.username)
-		self.scrape()
+	def scraper_clicked(self):
+		if not self.running:
+			inputs = [self.T_github_username.get().strip().lower(), self.T_location.get().strip().lower(), int(self.T_num_results.get().strip()), int(self.T_num_repos.get().strip()), int(self.T_num_followers.get().strip())]
+			self.message_queue = Queue.Queue()
+			Scraper(self.message_queue, inputs).start()
+			self.root.after(250, self.handle_queue)
+			self.running = True
+		else:
+			self.message_queue.put('A search is already running')
 
 	def button_click(self, e):
 		pass
 
-	def scrape(self):
+
+
+class Scraper(threading.Thread):
+
+	def __init__(self, queue, inputs):
+		threading.Thread.__init__(self)
+		self.message_queue = queue
+		self.qual_users = set()
+		self.qual_emails = set()
+		self.used_emails = set()
+
+		self.username = inputs[0]
+		self.location = inputs[1]
+		self.num_results = inputs[2]
+		self.num_repos = inputs[3]
+		self.num_followers = inputs[4]
+
+	def run(self):
 		self.setup()
 		self.run_script()
 		self.write_file()
@@ -104,14 +119,14 @@ class Scraper(object):
 					curr_email = prev_file.readline().strip()
 		except:
 			with open('prev_found.txt', 'w') as prev_file:
-				self.label.configure(text = "created previously found file")
+				self.post_message("created previously found file")
 		return
 
 	def run_script(self):
 		try:
 			gh = Github('39c1ad610c6c01fb0f2c30a68d2c24e54aa6ed3e')
 		except:
-			self.label.configure(text = "Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
+			self.post_message("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
 
 		self.collect_user(gh)
 		return
@@ -120,7 +135,7 @@ class Scraper(object):
 		try:
 			base_user = gh.get_user(self.username)
 		except:
-			self.label.configure(text = 'Github could not find a user with that username.')
+			self.post_message('Github could not find a user with that username.')
 		user_queue = []
 		user_queue.append(base_user)
 		self.qual_emails.add(base_user.email)
@@ -128,30 +143,37 @@ class Scraper(object):
 		while user_queue:
 			curr_user = user_queue.pop(0)
 			count += 1
-			self.label.configure(text = 'Evaluating user who '+ curr_user.name+ ' follows')	
+			self.post_message('Evaluating user who '+ curr_user.name+ ' follows')	
 			##Tries to iterate through followers, adding to qualified list and queue or discarding
 			try:
 				for user in curr_user.get_followers():
-					if self.protect_user(user) and self.check_user(user):
-						if not user.email in self.qual_emails:
-							self.qual_users.add(user)
-							self.qual_emails.add(user.email)
-						user_queue.append(user)
-						if len(self.qual_users) >= self.num_results: return
-						self.label.configure(text = 'Added'+user.name)
+					if self.protect_user(user):
+						self.post_message('Checked '+user.name)
+						if self.check_user(user):
+							if not user.email in self.qual_emails:
+								self.qual_users.add(user)
+								self.qual_emails.add(user.email)
+							user_queue.append(user)
+							if len(self.qual_users) >= self.num_results: return
+							self.post_message('Added '+user.name)
 			except:
 				if self.qual_users: 
-					self.label.configure(text = 'You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
-					self.label.configure(text = 'In the mean time I have saved good profiles I have already found to the usual CSV')
+					self.post_message('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
 					self.write_file()
 				return 
 		return
 
 	def write_file(self):
 		if self.qual_users:
-			self.label.configure(text = 'Writing to CSV format.')
+			self.post_message('Writing to CSV format.')
+
+			##where to save
+			save_path = 'GoogleDrive/Scraper'
 			file_name = self.username+'_'+self.location+strftime('%m-%d %H_%M_%S')+'.csv'
-			with open(file_name, 'w+') as cand_file:
+			complete_name = os.path.join(os.path.expanduser('~'),save_path)
+			complete_name = os.path.join(complete_name, file_name)
+
+			with open(complete_name, 'w+') as cand_file:
 				writer = csv.writer(cand_file)
 				header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL']
 				writer.writerow(header_row)
@@ -163,7 +185,7 @@ class Scraper(object):
 					if email:
 						email_file.write(email+'\n')
 		else:
-			self.label.configure(text = "No users found with those criteria, try a different base or broaden repo and follower requirements.")
+			self.post_message("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 		return
 
 	def protect_user(self, user):
@@ -177,7 +199,10 @@ class Scraper(object):
 		if(user.followers >= self.num_followers and user.public_repos >= self.num_repos and ((user.location.lower() in self.location) or (self.location in user.location.lower()))): return True
 		return False
 
+	def post_message(self, msg):
+		self.message_queue.put(msg)
+
 def main():
-	GithubScraper = Scraper()
+	GithubScraper = GUI()
 
 main()

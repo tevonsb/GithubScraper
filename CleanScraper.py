@@ -3,6 +3,7 @@ import csv
 import sys
 import signal
 from time import gmtime, strftime
+import os.path	
 
 import Tkinter as Tk
 from github import Github
@@ -150,8 +151,14 @@ class Scraper(object):
 	def write_file(self):
 		if self.qual_users:
 			self.label.configure(text = 'Writing to CSV format.')
+
+			##where to save
+			save_path = 'GoogleDrive/Scraper'
 			file_name = self.username+'_'+self.location+strftime('%m-%d %H_%M_%S')+'.csv'
-			with open(file_name, 'w+') as cand_file:
+			complete_name = os.path.join(os.path.expanduser('~'),save_path)
+			complete_name = os.path.join(complete_name, file_name)
+
+			with open(complete_name, 'w+') as cand_file:
 				writer = csv.writer(cand_file)
 				header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL']
 				writer.writerow(header_row)
