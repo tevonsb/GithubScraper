@@ -59,10 +59,16 @@ class GUI:
 		Tk.Button(self.root, 
 			textvariable=self.buttontext, command=self.scraper_clicked).pack()
 
-		self.label = Tk.Label(self.root, text="Filler Texted")
+		self.label = Tk.Label(self.root, text="Users")
 		self.label.pack()
+
+		self.system_label = Tk.Label(self.root, text = "System Messages")
+		self.system_label.pack()
+
 		self.running = False
 		##Starts mainloop execution
+
+		self.root.minsize(400, 400)
 		self.root.mainloop()
 
 	def handle_queue(self):
@@ -73,16 +79,25 @@ class GUI:
 			pass
 		self.root.after(250, self.handle_queue)
 
+	def handle_sys_queue(self):
+		try:
+			msg = self.system_queue.get(0)
+			self.system_label.configure(text = msg)
+		except Queue.Empty:
+			pass
+		self.root.after(1000, self.handle_sys_queue)
 
 	def scraper_clicked(self):
 		if not self.running:
 			inputs = [self.T_github_username.get().strip().lower(), self.T_location.get().strip().lower(), int(self.T_num_results.get().strip()), int(self.T_num_repos.get().strip()), int(self.T_num_followers.get().strip())]
 			self.message_queue = Queue.Queue()
-			Scraper(self.message_queue, inputs).start()
+			self.system_queue = Queue.Queue()
+			Scraper(self.message_queue, self.system_queue, inputs).start()
 			self.root.after(250, self.handle_queue)
+			self.root.after(1000, self.handle_sys_queue)
 			self.running = True
 		else:
-			self.message_queue.put('A search is already running')
+			self.system_queue.put('A search is already running')
 
 	def button_click(self, e):
 		pass
@@ -91,9 +106,10 @@ class GUI:
 
 class Scraper(threading.Thread):
 
-	def __init__(self, queue, inputs):
+	def __init__(self, queue, system_queue, inputs):
 		threading.Thread.__init__(self)
 		self.message_queue = queue
+		self.system_queue = system_queue
 		self.qual_users = set()
 		self.qual_emails = set()
 		self.used_emails = set()
@@ -119,14 +135,14 @@ class Scraper(threading.Thread):
 					curr_email = prev_file.readline().strip()
 		except:
 			with open('prev_found.txt', 'w') as prev_file:
-				self.post_message("created previously found file")
+				self.post_system("created previously found file")
 		return
 
 	def run_script(self):
 		try:
 			gh = Github('39c1ad610c6c01fb0f2c30a68d2c24e54aa6ed3e')
 		except:
-			self.post_message("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
+			self.post_system("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
 
 		self.collect_user(gh)
 		return
@@ -135,7 +151,7 @@ class Scraper(threading.Thread):
 		try:
 			base_user = gh.get_user(self.username)
 		except:
-			self.post_message('Github could not find a user with that username.')
+			self.post_system('Github could not find a user with that username.')
 		user_queue = []
 		user_queue.append(base_user)
 		self.qual_emails.add(base_user.email)
@@ -158,14 +174,15 @@ class Scraper(threading.Thread):
 							self.post_message('Added '+user.name)
 			except:
 				if self.qual_users: 
-					self.post_message('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
+					self.post_system('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
 					self.write_file()
 				return 
 		return
 
 	def write_file(self):
 		if self.qual_users:
-			self.post_message('Writing to CSV format.')
+			self.post_system('Writing to CSV format.')
+			self.post_message('Done!')
 
 			##where to save
 			save_path = 'GoogleDrive/Scraper'
@@ -185,7 +202,7 @@ class Scraper(threading.Thread):
 					if email:
 						email_file.write(email+'\n')
 		else:
-			self.post_message("No users found with those criteria, try a different base or broaden repo and follower requirements.")
+			self.post_system("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 		return
 
 	def protect_user(self, user):
@@ -201,6 +218,9 @@ class Scraper(threading.Thread):
 
 	def post_message(self, msg):
 		self.message_queue.put(msg)
+
+	def post_system(self, msg):
+		self.system_queue.put(msg)
 
 def main():
 	GithubScraper = GUI()
