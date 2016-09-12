@@ -114,9 +114,10 @@ class Scraper(threading.Thread):
 		threading.Thread.__init__(self)
 		self.message_queue = queue
 		self.system_queue = system_queue
-		self.qual_users = set()
+		self.qual_users = Queue.PriorityQueue()
 		self.qual_emails = set()
 		self.used_emails = set()
+		self.wanted_companies = set()
 
 		self.username = inputs[0]
 		self.location = inputs[1]
@@ -133,6 +134,7 @@ class Scraper(threading.Thread):
 
 	##Reads in previously found candidates and also creates Desktop folder if it does not already exist.
 	def setup(self):
+		##Open or create prev_found file
 		try:
 			with open('prev_found.txt', 'r') as prev_file:
 				curr_email = prev_file.readline().strip()
@@ -143,6 +145,18 @@ class Scraper(threading.Thread):
 			with open('prev_found.txt', 'w') as prev_file:
 				self.post_system("created previously found file")
 
+		##Open or create wanted_company file
+		try:
+			with open('wanted_company.txt', 'r') as wanted_file:
+				curr_company = wanted_file.readline().strip()
+				while not curr_company == '':
+					self.wanted_companies.add(curr_company)
+					curr_company = wanted_file.readline().strip()
+		except:
+			with open('wanted_company.txt', 'w') as wanted_file:
+				self.post_system("created previously found file")
+
+		##Create Desktop directory if needed
 		try:
 			complete_name = os.path.join(os.path.expanduser('~'),'Desktop/Github Scraped')
 			os.makedirs(complete_name)
@@ -156,7 +170,7 @@ class Scraper(threading.Thread):
 	##Establishes OAuth connection to Github using tevonsb
 	def run_script(self):
 		try:
-			gh = Github('5d4732574b3dd0145f247e2def93a1871ac9ef98 	')
+			gh = Github('9d4d22032b635a02b06e5ef7b4dc82af5366b9fa')
 		except:
 			self.post_system("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
 
@@ -185,13 +199,13 @@ class Scraper(threading.Thread):
 						self.post_message('Checked '+user.name)
 						if self.check_user(user):
 							if not user.email in self.qual_emails:
-								self.qual_users.add(user)
+								self.qual_users.put((self.get_priority(user),user))
 								self.qual_emails.add(user.email)
 							user_queue.append(user)
-							if len(self.qual_users) >= self.num_results: return
+							if self.qual_users.qsize() >= self.num_results: return
 							self.post_message('Added '+user.name)
 			except:
-				if self.qual_users: 
+				if not self.qual_users.empty(): 
 					self.post_system('You may have reached your query limit for the Github API or another error occured while accessing user data. Please try again later')
 					self.write_file()
 				return 
@@ -199,7 +213,7 @@ class Scraper(threading.Thread):
 
 	##Writes files (Previously found and found candidates)
 	def write_file(self):
-		if self.qual_users:
+		if not self.qual_users.empty():
 			self.post_system('Writing to CSV format.')
 			self.post_message('Done!')
 
@@ -211,10 +225,11 @@ class Scraper(threading.Thread):
 
 			with open(complete_name, 'w+') as cand_file:
 				writer = csv.writer(cand_file)
-				header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL']
+				header_row = ['Name', 'Email', 'Location', 'Number of Repos', 'Number of Followers', 'Profile URL', 'Company', 'Bio']
 				writer.writerow(header_row)
-				for user in self.qual_users:
-					user_list = [user.name.encode('utf-8'), user.email.encode('utf-8'), user.location.encode('utf-8'), user.public_repos, user.followers, 'www.github.com/'+user.login.encode('utf-8')]
+				while not self.qual_users.empty():
+					user = self.qual_users.get()[1]
+					user_list = self.create_csv_user(user)
 					writer.writerow(user_list)
 
 			##Writes to the list of previously found candidates, creates file if it does not exist
@@ -225,6 +240,24 @@ class Scraper(threading.Thread):
 		else:
 			self.post_system("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 		return
+
+	def get_priority(self, user):
+		priority = 20000
+		if user.company != None:
+			priority-=300
+			if user.company.lower() in self.wanted_companies:
+				priority -= 10000
+			priority -= user.followers
+		if priority < 0:
+			priority = 0
+		return priority
+	def create_csv_user(self, user):
+		user_list = [user.name.encode('utf-8'), user.email.encode('utf-8'), user.location.encode('utf-8'), user.public_repos, user.followers, 'www.github.com/'+user.login.encode('utf-8'), ' ', ' ']
+		if not user.company == None:
+			user_list[6] = user.company.encode('utf-8')
+		if not user.bio == None:
+			user_list[7] = user.bio.encode('utf-8')
+		return user_list
 
 	##Checks that none of the used fields are None, and that the candidate has not already been found. 
 	def protect_user(self, user):
