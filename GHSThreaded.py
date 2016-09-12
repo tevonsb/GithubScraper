@@ -1,5 +1,4 @@
 ##Trying to create a GUI with asynchonous I/O stream.
-import github
 import csv
 import sys
 import signal
@@ -67,15 +66,18 @@ class GUI:
 		self.system_label.pack()
 
 		self.running = False
-		##Starts mainloop execution
 
+		##Starts mainloop execution and sets window size
 		self.root.minsize(400, 400)
 		self.root.mainloop()
 
+	##Checks the message and system asynchronous message queues for any messages posted by the Scraper object
 	def handle_queue(self):
 		try:
 			msg = self.message_queue.get(0)
 			self.label.configure(text = msg)
+			if(msg == 'Done!'):
+				self.running = False
 		except Queue.Empty:
 			pass
 		self.root.after(250, self.handle_queue)
@@ -88,6 +90,7 @@ class GUI:
 			pass
 		self.root.after(1000, self.handle_sys_queue)
 
+	##Handles the click of the Scrape! button, creates a new thread for the scraping script.
 	def scraper_clicked(self):
 		if not self.running:
 			inputs = [self.T_github_username.get().strip().lower(), self.T_location.get().strip().lower(), int(self.T_num_results.get().strip()), int(self.T_num_repos.get().strip()), int(self.T_num_followers.get().strip())]
@@ -121,12 +124,14 @@ class Scraper(threading.Thread):
 		self.num_repos = inputs[3]
 		self.num_followers = inputs[4]
 
+	##Starts the thread going
 	def run(self):
 		self.setup()
 		self.run_script()
 		self.write_file()
 		return
 
+	##Reads in previously found candidates and also creates Desktop folder if it does not already exist.
 	def setup(self):
 		try:
 			with open('prev_found.txt', 'r') as prev_file:
@@ -148,15 +153,18 @@ class Scraper(threading.Thread):
 
 		return
 
+	##Establishes OAuth connection to Github using tevonsb
 	def run_script(self):
 		try:
-			gh = Github('39c1ad610c6c01fb0f2c30a68d2c24e54aa6ed3e')
+			gh = Github('5d4732574b3dd0145f247e2def93a1871ac9ef98 	')
 		except:
 			self.post_system("Github could not be reached. Contact Tevon, his account may be down or there may be a issue with the Github API")
 
 		self.collect_user(gh)
 		return
 
+	##Starts with the base user and performs a breadth first search on those followers, adding to a queue, finishes
+	##when there are no more candidates in the queue or the desired number of candidates is found.
 	def collect_user(self, gh):
 		try:
 			base_user = gh.get_user(self.username)
@@ -189,12 +197,13 @@ class Scraper(threading.Thread):
 				return 
 		return
 
+	##Writes files (Previously found and found candidates)
 	def write_file(self):
 		if self.qual_users:
 			self.post_system('Writing to CSV format.')
 			self.post_message('Done!')
 
-			##where to save
+			##where to save, creates a folder on the desktop if one does not exist and labels file
 			save_path = 'Desktop/Github Scraped'
 			file_name = self.username+'_'+self.location+strftime('%m-%d %H_%M_%S')+'.csv'
 			complete_name = os.path.join(os.path.expanduser('~'),save_path)
@@ -207,6 +216,8 @@ class Scraper(threading.Thread):
 				for user in self.qual_users:
 					user_list = [user.name.encode('utf-8'), user.email.encode('utf-8'), user.location.encode('utf-8'), user.public_repos, user.followers, 'www.github.com/'+user.login.encode('utf-8')]
 					writer.writerow(user_list)
+
+			##Writes to the list of previously found candidates, creates file if it does not exist
 			with open('prev_found.txt', 'a') as email_file:
 				for email in self.qual_emails:
 					if email:
@@ -215,6 +226,7 @@ class Scraper(threading.Thread):
 			self.post_system("No users found with those criteria, try a different base or broaden repo and follower requirements.")
 		return
 
+	##Checks that none of the used fields are None, and that the candidate has not already been found. 
 	def protect_user(self, user):
 		if user==None or user.location == None or user.email == None or user.name == None or user.followers == None or user.public_repos == None: return False
 		if user.email in self.used_emails: 
@@ -226,9 +238,11 @@ class Scraper(threading.Thread):
 		if(user.followers >= self.num_followers and user.public_repos >= self.num_repos and ((user.location.lower() in self.location) or (self.location in user.location.lower()))): return True
 		return False
 
+	##Posts msg to the message_queue asynchronous queue to be printed to the GUI
 	def post_message(self, msg):
 		self.message_queue.put(msg)
 
+	##posts msg to the system_queue asynchronous queue to print to the GUI
 	def post_system(self, msg):
 		self.system_queue.put(msg)
 
