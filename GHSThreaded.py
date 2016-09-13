@@ -55,9 +55,16 @@ class GUI:
 
 		self.buttontext = Tk.StringVar()
 		self.buttontext.set("Scrape!")
-
 		Tk.Button(self.root, 
 			textvariable=self.buttontext, command=self.scraper_clicked).pack()
+
+		self.autobuttontext = Tk.StringVar()
+		self.autobuttontext.set("Auto-scrape")
+		Tk.Button(self.root, textvariable = self.autobuttontext, command = self.auto_clicked).pack()
+
+		self.only_select_comps = Tk.IntVar()
+		self.select_comp = Tk.Checkbutton(self.root, text = "Only select companies", variable = self.only_select_comps)
+		self.select_comp.pack()
 
 		self.label = Tk.Label(self.root, text="Users")
 		self.label.pack()
@@ -66,6 +73,14 @@ class GUI:
 		self.system_label.pack()
 
 		self.running = False
+		self.auto_used = False
+
+		self.auto_users = Queue.Queue()
+
+		self.message_queue = Queue.Queue()
+		self.system_queue = Queue.Queue()
+		self.root.after(250, self.handle_queue)
+		self.root.after(1000, self.handle_sys_queue)
 
 		##Starts mainloop execution and sets window size
 		self.root.minsize(400, 400)
@@ -92,16 +107,41 @@ class GUI:
 
 	##Handles the click of the Scrape! button, creates a new thread for the scraping script.
 	def scraper_clicked(self):
+		if self.T_github_username.get() == '':
+			self.label.configure(text = 'please enter a username')
+			return
+		print(self.T_github_username.get())
 		if not self.running:
-			inputs = [self.T_github_username.get().strip().lower(), self.T_location.get().strip().lower(), int(self.T_num_results.get().strip()), int(self.T_num_repos.get().strip()), int(self.T_num_followers.get().strip())]
-			self.message_queue = Queue.Queue()
-			self.system_queue = Queue.Queue()
+			inputs = [self.T_github_username.get().strip().lower(), self.T_location.get().strip().lower(), int(self.T_num_results.get().strip()), int(self.T_num_repos.get().strip()), int(self.T_num_followers.get().strip()), self.only_select_comps.get(), self.auto_users, self.auto_users]
 			Scraper(self.message_queue, self.system_queue, inputs).start()
-			self.root.after(250, self.handle_queue)
-			self.root.after(1000, self.handle_sys_queue)
 			self.running = True
 		else:
 			self.system_queue.put('A search is already running')
+
+	def auto_clicked(self):
+		self.auto_used = True
+		self.gather_auto_users()
+		self.auto_users.put('mojombo')
+		try:
+			temp = Tk.StringVar()
+			temp.set(self.auto_users.get())
+			print(temp.get())
+			self.T_github_username = temp
+		except:
+			self.system_queue.put("The auto queue is empty... Try a regular scrape.")
+		self.scraper_clicked()
+		pass
+
+	def gather_auto_users(self):
+		try:
+			with open('auto_users.txt', 'r') as auto_file:
+				curr_user = auto_file.readline().strip 
+				while not curr_user == '':
+					self.auto_users.add(curr_user)
+					curr_user = auto_file.readline().strip()
+		except:
+			with open('auto_users.txt', 'w') as auto_file:
+				self.system_queue.put("created Auto-scrape file")
 
 	def button_click(self, e):
 		pass
@@ -124,6 +164,7 @@ class Scraper(threading.Thread):
 		self.num_results = inputs[2]
 		self.num_repos = inputs[3]
 		self.num_followers = inputs[4]
+		self.only_select = inputs[5]
 
 	##Starts the thread going
 	def run(self):
@@ -150,7 +191,7 @@ class Scraper(threading.Thread):
 			with open('wanted_company.txt', 'r') as wanted_file:
 				curr_company = wanted_file.readline().strip()
 				while not curr_company == '':
-					self.wanted_companies.add(curr_company)
+					self.wanted_companies.add(curr_company.lower())
 					curr_company = wanted_file.readline().strip()
 		except:
 			with open('wanted_company.txt', 'w') as wanted_file:
@@ -251,6 +292,7 @@ class Scraper(threading.Thread):
 		if priority < 0:
 			priority = 0
 		return priority
+
 	def create_csv_user(self, user):
 		user_list = [user.name.encode('utf-8'), user.email.encode('utf-8'), user.location.encode('utf-8'), user.public_repos, user.followers, 'www.github.com/'+user.login.encode('utf-8'), ' ', ' ']
 		if not user.company == None:
@@ -268,6 +310,8 @@ class Scraper(threading.Thread):
 
 	##Checks the criteria set to be considered a qualified profile (Checks number of followers, location and number of Repos)
 	def check_user(self, user):
+		if self.only_select:
+			if user.company == None or user.company.lower() not in self.wanted_companies or user.company == '' or user.company == ' ': return False
 		if(user.followers >= self.num_followers and user.public_repos >= self.num_repos and ((user.location.lower() in self.location) or (self.location in user.location.lower()))): return True
 		return False
 

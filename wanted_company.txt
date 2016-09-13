@@ -1,3 +1,11 @@
 dropbox
 google
 netflix
+palantir
+hp
+twitter
+twilio
+evernote
+apple
+ifttt
+linkedin
